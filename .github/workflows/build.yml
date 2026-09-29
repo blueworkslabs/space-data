@@ -1,0 +1,56 @@
+name: build
+
+on:
+  # Every 4 hours, off the hour. CelesTrak updates GP data every 2 hours and
+  # asks for at most one download per update; 4 hours also keeps Cloudflare
+  # Pages deployments at about 180 a month. space_data.run enforces a
+  # persisted minimum interval and failure hold for every entry point.
+  schedule:
+    - cron: "37 */4 * * *"
+  workflow_dispatch:
+    inputs:
+      clear_hold:
+        description: Clear a failure hold after investigating (short note, e.g. "CelesTrak 503 during maintenance, OK now"). Leave empty otherwise.
+        required: false
+        default: ""
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || 'publish' }}
+  cancel-in-progress: false
+
+jobs:
+  # Tests use saved fixtures only; pull requests never query CelesTrak.
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m unittest discover -s tests -t . -v
+
+  publish:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # Reads the `state` branch first and fails closed. A hold fails the run
+      # (visible in Actions) until cleared via clear_hold. The minimum interval
+      # ends the run early and successfully. The attempt is saved before the
+      # first CelesTrak request; any upstream failure saves a hold.
+      - name: Gate, build and publish
+        env:
+          CLEAR_HOLD: ${{ inputs.clear_hold }}
+        run: python -m space_data.run --clear-hold "$CLEAR_HOLD"
