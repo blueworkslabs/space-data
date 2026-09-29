@@ -22,6 +22,11 @@ and works out positions itself.
   That covers cron, manual dispatch and reruns alike. The attempt is saved
   *before* the first request, so a cancelled or crashed run still counts. If the
   state cannot be read or saved, nothing is requested.
+- The saved attempt includes a provisional hold, cleared only after successful
+  publication (or a verified no-op). Cancellation, a failed publication, or a
+  failed state write therefore leaves a hold for investigation, even if the
+  process could not record the final failure reason. Recovery uses `clear_hold`
+  and still respects the interval.
 - **Stop on anything unexpected, and stay stopped.** Any answer other than HTTP
   200 JSON ends the run: no retry, no redirect following, nothing published.
   That covers redirects, 403/404, 5xx, HTML notices, timeouts, and data below
@@ -137,6 +142,9 @@ scripts/publish.sh public --dry-run
 
 Standard library only (Python 3.12). Cloudflare Pages serves the orphan
 `pages` branch: no build command, output directory `/`.
+Disable automatic preview deployments for other branches in the Pages project,
+especially `state`: its bookkeeping pushes are not site updates and otherwise
+consume additional deployments beyond the roughly 180 monthly data builds.
 
 GitHub pauses scheduled workflows in repositories without activity for 60
 days. The data's age is in `index.json` and shown by the module; Space Watch 0.5.0 is planned to fall back to CelesTrak when the mirror is stale.

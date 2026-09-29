@@ -7,6 +7,7 @@ report to a human that the policy asks for.
 from __future__ import annotations
 
 import json
+import http.client
 import os
 import time
 import urllib.error
@@ -43,6 +44,8 @@ def live(pause_s=2.0, timeout_s=90):
             raise Stop(f"HTTP {e.code} from {url}") from None
         except urllib.error.URLError as e:
             raise Stop(f"{url}: {e.reason}") from None
+        except (OSError, http.client.HTTPException) as e:
+            raise Stop(f"{url}: {type(e).__name__}: {e}") from None
         finally:
             state["last"] = time.monotonic()
         if status != 200:

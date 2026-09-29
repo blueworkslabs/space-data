@@ -90,7 +90,7 @@ def run(store, fetch, published_loader, publisher, now, out="public", work="work
         try:
             store.save(S.fail(state, now, reason))
         except S.StateError as se:
-            return 1, f"{reason}; hold NOT saved ({se}), investigate before any rerun"
+            return 1, f"{reason}; failure detail not saved ({se}); pre-request hold remains"
         return 1, f"{reason}; hold set"
     finally:
         if published:
@@ -102,7 +102,7 @@ def run(store, fetch, published_loader, publisher, now, out="public", work="work
     try:
         outcome = publisher(out)
     except PublishError as e:
-        return 1, f"publication failed (no hold; the interval still applies): {e}"
+        return 1, f"publication failed (pre-request hold remains; investigate before retrying): {e}"
     try:
         store.save(S.succeed(state, now, marker, f"{outcome} {index['dataset']}"))
     except S.StateError as e:

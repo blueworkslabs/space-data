@@ -1,5 +1,6 @@
 import contextlib
 import http.server
+import http.client
 import json
 import os
 import shutil
@@ -265,6 +266,13 @@ class Fetch(unittest.TestCase):
     def test_raw_names(self):
         self.assertEqual(F.raw_name(C.GP_URL.format(group="last-30-days")), "last-30-days.gp.json")
         self.assertEqual(F.raw_name(C.SATCAT_URL.format(group="geo")), "geo.satcat.json")
+
+    def test_socket_and_incomplete_body_errors_are_stops(self):
+        for error in (TimeoutError("timed out"), ConnectionResetError("reset"),
+                      http.client.IncompleteRead(b"[", 10)):
+            with mock.patch.object(F._opener, "open", side_effect=error):
+                with self.assertRaises(F.Stop):
+                    F.live(pause_s=0)("https://example.invalid/data")
 
 
 if __name__ == "__main__":

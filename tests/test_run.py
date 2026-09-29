@@ -164,10 +164,26 @@ class Cadence(unittest.TestCase):
             self.h.run(T0, Upstream(self.h.store, interrupt_on="GROUP=last-30-days"))
         state = self.h.store.load()
         self.assertEqual(state["lastAttempt"], "2026-09-30T00:37:00Z")
-        self.assertIsNone(state["hold"], "a cancellation is not an upstream failure")
+        self.assertIsNotNone(state["hold"], "an incomplete attempt needs investigation")
         code, msg, up = self.h.run(T0 + timedelta(minutes=1))
-        self.assertEqual((code, up.urls), (0, []))
-        self.assertIn("next allowed", msg)
+        self.assertEqual((code, up.urls), (1, []))
+        code, msg, up = self.h.run(T0 + timedelta(hours=4))
+        self.assertEqual((code, up.urls), (1, []))
+
+    def test_failed_hold_write_cannot_allow_later_requests(self):
+        class FailsAfterBegin(S.DirStore):
+            saves = 0
+            def save(self, state):
+                self.saves += 1
+                if self.saves > 1:
+                    raise S.StateError("connection lost after attempt recorded")
+                super().save(state)
+        self.h.store = FailsAfterBegin(self.h.store.path)
+        code, msg, _ = self.h.run(T0, Upstream(self.h.store, fail_on="GROUP=visual"))
+        self.assertEqual(code, 1)
+        self.h.store = S.DirStore(self.h.store.path)
+        code, msg, up = self.h.run(T0 + timedelta(hours=4))
+        self.assertEqual((code, up.urls), (1, []), msg)
 
     def test_fail_closed_without_state(self):
         Path(self.h.store.path).write_text("{not json")

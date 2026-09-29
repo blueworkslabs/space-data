@@ -83,6 +83,9 @@ def gate(state, now):
 
 def begin(state, now):
     state["lastAttempt"] = iso(now)
+    # Persist the safe default before traffic. A killed process or failed
+    # failure-state push must not silently turn into an automatic retry.
+    state["hold"] = {"since": iso(now), "reason": "Incomplete attempt; investigate before retrying"}
     note(state, now, "attempt")
     return state
 
@@ -94,6 +97,7 @@ def fail(state, now, reason):
 
 
 def succeed(state, now, satcat_marker, outcome):
+    state["hold"] = None
     state["lastSuccess"] = iso(now)
     if satcat_marker is not None:
         state["satcat"] = {"marker": satcat_marker, "checked": iso(now)}
