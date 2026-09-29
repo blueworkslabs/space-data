@@ -58,7 +58,10 @@ def live(pause_s=2.0, timeout_s=90):
 
 
 def raw_name(url):
-    """File name for a saved response: <group>.gp.json or <group>.satcat.json."""
+    """File name for a saved response: <group>.gp.json, <group>.satcat.json
+    or satcat-dir.json."""
+    if url == C.SATCAT_DIR_URL:
+        return "satcat-dir.json"
     group = url.split("GROUP=", 1)[1].split("&", 1)[0]
     return f"{group}.{'satcat' if '/satcat/' in url else 'gp'}.json"
 

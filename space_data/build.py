@@ -1,6 +1,8 @@
-"""Build one dataset: fetch every group, compact, shard, write public/.
+"""Build one dataset from saved CelesTrak answers: compact, shard, write public/.
 
-    python -m space_data.build --out public [--save-raw work/raw | --from work/raw]
+    python -m space_data.build --from work/raw --out public
+Live downloads happen only through space_data.run, which enforces the
+persisted interval and failure hold.
 """
 from __future__ import annotations
 
@@ -38,15 +40,60 @@ def shards(row_list, kind, limit=None):
     return [dumps({"schema": C.SCHEMA, "kind": kind, "rows": part}).encode() for part in out]
 
 
-def collect(fetch):
-    """Rows per group. Raises F.Stop or ValueError; nothing is written then."""
+def satcat_marker(fetch):
+    """CelesTrak's SATCAT update marker (mtime and size of satcat.csv) from
+    its directory listing. One small request; CelesTrak asks for at most one an
+    hour, and runs are gated to one per 3 hours."""
+    listing = fetch(C.SATCAT_DIR_URL)
+    entry = next((e for e in listing if isinstance(e, dict) and e.get("FILE_NAME") == "satcat.csv"), None) \
+        if isinstance(listing, list) else None
+    if not entry or not isinstance(entry.get("FILE_MTIME"), str) or not isinstance(entry.get("FILE_SIZE"), int):
+        raise ValueError("SATCAT directory listing has no satcat.csv entry")
+    return {"mtime": entry["FILE_MTIME"], "size": entry["FILE_SIZE"]}
+
+
+def published_satcat(published):
+    """Catalogue rows per group from the published dataset, revalidated, or
+    None when any group is missing or invalid (then they are downloaded)."""
+    from .validate import CHECK
+    try:
+        with open(os.path.join(published, "v1", "index.json"), encoding="utf-8") as fh:
+            index = json.load(fh)
+        out = {}
+        for g in C.GROUPS:
+            if not g["satcat"]:
+                continue
+            got = []
+            for f in index["groups"][g["group"]]["satcat"]:
+                with open(os.path.join(published, "v1", index["path"], f["file"]), "rb") as fh:
+                    body = fh.read()
+                if hashlib.sha256(body).hexdigest() != f["sha256"]:
+                    return None
+                got += json.loads(body)["rows"]
+            width, check = CHECK["satcat"]
+            if not got or any(not isinstance(r, list) or len(r) != width or check(r) != r for r in got):
+                return None
+            out[g["group"]] = got
+        return out
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
+def collect(fetch, reuse_satcat=None):
+    """Rows per group. Raises F.Stop or ValueError; nothing is written then.
+    reuse_satcat: catalogue rows per group to use instead of downloading."""
     data = {}
     for g in C.GROUPS:
         name = g["group"]
         elements = rows(fetch(C.GP_URL.format(group=name)), element_row)
         if len(elements) < g["min_rows"]:
             raise ValueError(f"{name}: {len(elements)} valid element sets, expected at least {g['min_rows']}")
-        satcat = rows(fetch(C.SATCAT_URL.format(group=name)), satcat_row) if g["satcat"] else None
+        if not g["satcat"]:
+            satcat = None
+        elif reuse_satcat is not None:
+            satcat = reuse_satcat[name]
+        else:
+            satcat = rows(fetch(C.SATCAT_URL.format(group=name)), satcat_row)
         if satcat is not None and not satcat:
             raise ValueError(f"{name}: no valid catalogue records")
         data[name] = {"elements": elements, "satcat": satcat}
@@ -134,14 +181,10 @@ def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--out", default="public")
     p.add_argument("--work", default="work")
-    src = p.add_mutually_exclusive_group()
-    src.add_argument("--from", dest="source", help="read saved responses instead of CelesTrak")
-    src.add_argument("--save-raw", help="also save CelesTrak responses here")
+    p.add_argument("--from", dest="source", required=True, help="saved responses (see space_data.run)")
     p.add_argument("--built", help="build time (ISO, UTC); default now")
     a = p.parse_args(argv)
-    fetch = F.saved(a.source) if a.source else F.live()
-    if a.save_raw:
-        fetch = F.saving(fetch, a.save_raw)
+    fetch = F.saved(a.source)
     built = (datetime.fromisoformat(a.built.replace("Z", "+00:00")) if a.built else datetime.now(timezone.utc)).astimezone(timezone.utc)
     if os.path.exists(a.out) and os.listdir(a.out):
         sys.exit(f"{a.out} is not empty")

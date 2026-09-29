@@ -2,6 +2,7 @@
 
 SCHEMA = 1
 
+SATCAT_DIR_URL = "https://celestrak.org/satcat/jsonDir.php"
 GP_URL = "https://celestrak.org/NORAD/elements/gp.php?GROUP={group}&FORMAT=json"
 SATCAT_URL = "https://celestrak.org/satcat/records.php?GROUP={group}&FORMAT=json"
 

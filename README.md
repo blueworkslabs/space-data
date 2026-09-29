@@ -15,11 +15,27 @@ and works out positions itself.
 
 - CelesTrak GP data (OMM JSON) and SATCAT records, by group. See the table below.
 - The job runs every **4 hours** at :37. CelesTrak updates GP data every 2 hours and asks for at
-  most one download per update. One run makes 9 requests, one at a time, 2 s apart.
-- **Stop on anything unexpected.** Any answer other than HTTP 200 JSON stops the
-  run: no retry, no redirect following, nothing published. That covers
-  redirects, 403/404, 5xx, HTML notices and timeouts. The previous data stays
-  online, and the failed workflow run notifies the repository owner.
+  most one download per update. Requests go one at a time, 2 s apart.
+- **Persisted cadence.** `space_data.run` keeps its state in `state.json` on the
+  orphan branch `state`, which Pages does not serve. Before any request it loads
+  that state and applies a **minimum interval of 3 hours since the last attempt**.
+  That covers cron, manual dispatch and reruns alike. The attempt is saved
+  *before* the first request, so a cancelled or crashed run still counts. If the
+  state cannot be read or saved, nothing is requested.
+- **Stop on anything unexpected, and stay stopped.** Any answer other than HTTP
+  200 JSON ends the run: no retry, no redirect following, nothing published.
+  That covers redirects, 403/404, 5xx, HTML notices, timeouts, and data below
+  the minimums. It also saves a **hold**. Every later run fails immediately,
+  without a request, until a human investigates and runs the workflow manually
+  with `clear_hold` set to a short note. Clearing does not bypass the interval.
+  The previous data stays online throughout.
+- **SATCAT follows its own cadence.** CelesTrak updates it manually once or
+  twice a day. Each run makes one request to `satcat/jsonDir.php` (the
+  documented update check). When `satcat.csv`'s mtime and size match the last
+  successful run, the published catalogue rows are revalidated and reused.
+  Only on an update, or if the published rows are missing or damaged, are the
+  four group lists downloaded. A typical run is 1 + 5 requests; with a
+  SATCAT update, 1 + 9.
 - Unchanged data is not republished (same content digest).
 - Attribution: *Orbital elements and satellite catalogue: CelesTrak
   (celestrak.org), based on U.S. Space Force general perturbations data.*
@@ -113,8 +129,8 @@ output for the fixtures, and the tests require identical rows.
 
 ```
 python -m unittest discover -s tests -t .
-python -m space_data.build --out public --save-raw work/raw   # queries CelesTrak (9 requests)
-python -m space_data.build --out public --from work/raw       # rebuild from saved answers
+python -m space_data.run                                      # the job: gated, queries CelesTrak, publishes
+python -m space_data.build --from work/raw --out public       # rebuild from answers the job saved
 python -m space_data.validate public
 scripts/publish.sh public --dry-run
 ```
