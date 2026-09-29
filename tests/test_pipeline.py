@@ -87,6 +87,12 @@ class Build(unittest.TestCase):
         with open(os.path.join(public, "_headers"), encoding="utf-8") as fh:
             self.assertEqual(fh.read(), C.HEADERS)
 
+    def test_headers_use_one_splat_per_rule(self):
+        # Cloudflare Pages ignores a rule with more than one splat.
+        rules = [line for line in C.HEADERS.splitlines() if line.startswith("/")]
+        self.assertEqual(rules, ["/v1/index.json", "/v1/:dataset/*"])
+        self.assertTrue(all(r.count("*") <= 1 for r in rules))
+
     def test_real_limit_is_below_host_cap(self):
         self.assertLess(C.MAX_FILE_BYTES, C.HOST_LIMIT_BYTES)
 
@@ -141,6 +147,11 @@ class Publish(unittest.TestCase):
             same = os.path.join(self.tmp, "b")
             build_into(same, "2026-09-30T01:00:00Z")
             self.assertEqual(P.plan(same, pages), "noop", "identical data publishes nothing")
+            with open(os.path.join(pages, "_headers"), "w", encoding="utf-8") as fh:
+                fh.write("/v1/*/*\n")
+            again = os.path.join(self.tmp, "b2")
+            build_into(again, "2026-09-30T01:00:00Z")
+            self.assertEqual(P.plan(again, pages), "publish 20260930T0100Z", "a contract header change republishes")
 
             def fewer(url):
                 data = F.saved(FIX)(url)

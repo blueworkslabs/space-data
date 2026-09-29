@@ -13,8 +13,17 @@ import os
 import shutil
 import sys
 
+from . import contract as C
 from .build import write_index
 from .validate import validate
+
+
+def served_headers(published):
+    try:
+        with open(os.path.join(published, "_headers"), encoding="utf-8") as fh:
+            return fh.read()
+    except FileNotFoundError:
+        return None
 
 
 def plan(public, published):
@@ -27,7 +36,7 @@ def plan(public, published):
     except FileNotFoundError:
         pass
     if current is not None:
-        if current.get("content") == index["content"]:
+        if current.get("content") == index["content"] and served_headers(published) == C.HEADERS:
             return "noop"
         old = current.get("dataset")
         if not isinstance(old, str) or old >= index["dataset"]:

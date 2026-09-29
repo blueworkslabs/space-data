@@ -57,7 +57,8 @@ public/
 - Every file is at most **1,000,000 bytes**, well under the host's 2 MiB
   `net.http` JSON limit. Larger groups are split into `-1`, `-2`, … in source order.
 - `_headers`: `v1/index.json` is cached for 5 minutes, dataset files for a year
-  (immutable). Both allow any origin.
+  (immutable, rule `/v1/:dataset/*`; Cloudflare allows one splat per rule). Both allow any origin.
+  A change to `_headers` republishes even when the data is unchanged.
 
 ### `v1/index.json`
 

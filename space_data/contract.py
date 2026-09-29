@@ -32,10 +32,12 @@ ATTRIBUTION = ("Orbital elements and satellite catalogue: CelesTrak (celestrak.o
 
 USER_AGENT = "space-data/1 (+https://github.com/blueworkslabs/space-data)"
 
+# Cloudflare Pages allows one splat per rule; ":dataset" is a placeholder, and
+# the rule cannot match v1/index.json (no slash after the name).
 HEADERS = """/v1/index.json
   Cache-Control: public, max-age=300
   Access-Control-Allow-Origin: *
-/v1/*/*
+/v1/:dataset/*
   Cache-Control: public, max-age=31536000, immutable
   Access-Control-Allow-Origin: *
 """
