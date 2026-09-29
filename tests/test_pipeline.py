@@ -61,6 +61,13 @@ class Rows(unittest.TestCase):
         with self.assertRaises(ValueError):
             R.rows({"not": "a list"}, R.element_row)
 
+    def test_json_numeric_ids_and_unknown_type(self):
+        # JavaScript has one numeric type: 25544.0 is an integer there too.
+        self.assertEqual(R.catalog_id(25544.0), 25544)
+        self.assertIsNone(R.catalog_id(25544.5))
+        for value in ([], {}, None):
+            self.assertEqual(R.satcat_row({"NORAD_CAT_ID": 25544, "OBJECT_TYPE": value})[1], "UNK")
+
 
 class Build(unittest.TestCase):
     def setUp(self):
@@ -95,6 +102,24 @@ class Build(unittest.TestCase):
 
     def test_real_limit_is_below_host_cap(self):
         self.assertLess(C.MAX_FILE_BYTES, C.HOST_LIMIT_BYTES)
+
+    def test_empty_or_invalid_satcat_stops_further_queries(self):
+        for payload in ([], [{"NORAD_CAT_ID": False}], [None]):
+            calls = []
+            def fetch(url):
+                calls.append(url)
+                return payload if "/satcat/" in url else F.saved(FIX)(url)
+            with small_contract(), self.assertRaisesRegex(ValueError, "visual:.*catalog"):
+                B.collect(fetch)
+            self.assertEqual(len(calls), 2)
+
+    def test_validate_rejects_empty_satcat_even_with_valid_hashes(self):
+        with small_contract():
+            data = B.collect(F.saved(FIX))
+            data["visual"]["satcat"] = []
+            public = os.path.join(self.tmp, "empty-catalog")
+            B.write(public, data, at("2026-09-29T21:00:00Z"))
+            self.assertTrue(any("catalog" in e for e in validate(public)))
 
     def test_too_few_rows_stops_before_writing(self):
         with self.assertRaisesRegex(ValueError, "visual: 26 valid element sets, expected at least 100"):
@@ -190,6 +215,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_response(301)
             self.send_header("Location", "/json")
             self.end_headers()
+        elif self.path.startswith("/bad-json"):
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(b"[invalid")
+        elif self.path.startswith("/server-error"):
+            self.send_response(503)
+            self.end_headers()
         else:
             self.send_response(403)
             self.end_headers()
@@ -212,9 +245,22 @@ class Fetch(unittest.TestCase):
     def test_only_200_json_is_accepted(self):
         fetch = F.live(pause_s=0)
         self.assertEqual(fetch(self.base + "/json"), [1])
-        for path, why in (("/html", "not JSON"), ("/moved", "redirect"), ("/limit", "HTTP 403")):
+        for path, why in (("/html", "not JSON"), ("/moved", "redirect"), ("/limit", "HTTP 403"),
+                          ("/bad-json", "invalid JSON"), ("/server-error", "HTTP 503")):
             with self.assertRaisesRegex(F.Stop, why):
                 fetch(self.base + path)
+
+    def test_failure_aborts_collection_without_more_requests(self):
+        calls = []
+        live = F.live(pause_s=0)
+        def fetch(url):
+            calls.append(url)
+            if len(calls) == 2:
+                return live(self.base + "/server-error")
+            return F.saved(FIX)(url)
+        with small_contract(), self.assertRaisesRegex(F.Stop, "HTTP 503"):
+            B.collect(fetch)
+        self.assertEqual(len(calls), 2)
 
     def test_raw_names(self):
         self.assertEqual(F.raw_name(C.GP_URL.format(group="last-30-days")), "last-30-days.gp.json")

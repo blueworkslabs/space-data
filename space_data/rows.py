@@ -46,9 +46,9 @@ def text(x, n=40):
 
 
 def catalog_id(x):
-    if isinstance(x, bool) or not isinstance(x, int) or x < 1 or x > 999_999_999:
+    if num(x, 1, 999_999_999) is None or int(x) != x:
         return None
-    return x
+    return int(x)
 
 
 def epoch_ms(value):
@@ -100,7 +100,7 @@ def satcat_row(o):
 
     return [
         oid,
-        o.get("OBJECT_TYPE") if o.get("OBJECT_TYPE") in TYPES else "UNK",
+        o.get("OBJECT_TYPE") if isinstance(o.get("OBJECT_TYPE"), str) and o["OBJECT_TYPE"] in TYPES else "UNK",
         match("OWNER", OWNER),
         match("LAUNCH_DATE", DATE),
         match("DECAY_DATE", DATE),

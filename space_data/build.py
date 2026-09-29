@@ -47,6 +47,8 @@ def collect(fetch):
         if len(elements) < g["min_rows"]:
             raise ValueError(f"{name}: {len(elements)} valid element sets, expected at least {g['min_rows']}")
         satcat = rows(fetch(C.SATCAT_URL.format(group=name)), satcat_row) if g["satcat"] else None
+        if satcat is not None and not satcat:
+            raise ValueError(f"{name}: no valid catalogue records")
         data[name] = {"elements": elements, "satcat": satcat}
     return data
 

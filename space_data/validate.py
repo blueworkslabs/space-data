@@ -111,6 +111,8 @@ def validate(public):
                         break
                     seen.add(r[0])
                 total += len(doc["rows"])
+            if kind == "satcat" and total == 0:
+                errs.append(f"{name}: no valid catalogue records")
             if kind == "elements":
                 if total < g["min_rows"]:
                     errs.append(f"{name}: {total} element sets, expected at least {g['min_rows']}")

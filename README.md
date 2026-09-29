@@ -32,8 +32,9 @@ and works out positions itself.
 | geo | `geo` | yes | 300 |
 | starlink | `starlink` | no (several MB, little use) | 5000 |
 
-A group with fewer valid element sets than its minimum stops the run. A
-truncated answer never replaces good data.
+A group with fewer valid element sets than its minimum stops the run, as does
+an empty or wholly invalid required SATCAT list. These guards catch empty and
+severely truncated responses; they cannot prove a valid JSON list is complete.
 
 ## Data contract, schema 1
 
@@ -97,11 +98,11 @@ exactly Space Watch's compact rows. The module validates every row again on down
   inclination, raan, argPericenter, meanAnomaly, bstar, meanMotionDot,
   meanMotionDdot]`. OMM units (rev/day, degrees). `epochMs` is Unix
   milliseconds of the UTC epoch, truncated like JavaScript's `Date.parse`.
-  Records outside the module's bounds are dropped (e.g. eccentricity ≥ 0.99,
+  Records outside the module's bounds are dropped (e.g. eccentricity > 0.99,
   mean motion outside 0.05–20 rev/day), as is a repeated catalogue number.
 - **satcat**: `[id, type, owner, launch, decay, periodMin, apogeeKm,
   perigeeKm, rcsM2, intdes, name]`. `type` is `PAY`, `R/B`, `DEB` or
-  `UNK`; unknown values become `null`.
+  `UNK`; unknown types become `UNK`, and invalid optional fields become `null`.
 - Names are printable ASCII, at most 40 characters. Catalogue numbers are
   1–999,999,999 (six-digit numbers began on 2026-07-11).
 

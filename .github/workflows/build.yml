@@ -1,5 +1,10 @@
 name: build
 
+# Fixture tests do not need the repository's default write token. Only the
+# publication job below receives contents: write.
+permissions:
+  contents: read
+
 on:
   # Every 4 hours, off the hour. CelesTrak updates GP data every 2 hours and
   # asks for at most one download per update; 4 hours also keeps Cloudflare
