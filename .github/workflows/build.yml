@@ -1,0 +1,49 @@
+name: build
+
+on:
+  # Every 4 hours, off the hour. CelesTrak updates GP data every 2 hours and
+  # asks for at most one download per update; 4 hours also keeps Cloudflare
+  # Pages deployments at about 180 a month.
+  schedule:
+    - cron: "37 */4 * * *"
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || 'publish' }}
+  cancel-in-progress: false
+
+jobs:
+  # Tests use saved fixtures only; pull requests never query CelesTrak.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m unittest discover -s tests -t . -v
+
+  publish:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # Any answer from CelesTrak other than HTTP 200 JSON fails this step and
+      # nothing is published: the failed run is the report to a human.
+      - name: Build
+        run: python -m space_data.build --out public --work work --save-raw work/raw
+      - name: Report
+        if: always()
+        run: test -f work/report.md && cat work/report.md >> "$GITHUB_STEP_SUMMARY" || true
+      - name: Publish to pages
+        run: scripts/publish.sh public
