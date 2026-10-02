@@ -1,0 +1,33 @@
+{
+ "schema": 1,
+ "hold": {
+  "since": "2026-10-02T14:57:13Z",
+  "reason": "Incomplete attempt; investigate before retrying"
+ },
+ "lastAttempt": "2026-10-02T14:57:13Z",
+ "lastSuccess": "2026-10-02T06:05:51Z",
+ "satcat": {
+  "marker": {
+   "mtime": "2026-10-01 22:16:19 UTC",
+   "size": 6755064
+  },
+  "checked": "2026-10-02T06:05:51Z"
+ },
+ "log": [
+  "2026-09-30T05:00:32Z attempt",
+  "2026-09-30T05:00:32Z published 20260930T0500Z",
+  "2026-09-30T15:13:33Z attempt",
+  "2026-09-30T15:13:33Z published 20260930T1513Z",
+  "2026-09-30T20:57:49Z attempt",
+  "2026-09-30T20:57:49Z published 20260930T2057Z",
+  "2026-10-01T06:27:42Z attempt",
+  "2026-10-01T06:27:42Z published 20261001T0627Z",
+  "2026-10-01T15:37:37Z attempt",
+  "2026-10-01T15:37:37Z published 20261001T1537Z",
+  "2026-10-01T21:16:23Z attempt",
+  "2026-10-01T21:16:23Z published 20261001T2116Z",
+  "2026-10-02T06:05:51Z attempt",
+  "2026-10-02T06:05:51Z published 20261002T0605Z",
+  "2026-10-02T14:57:13Z attempt"
+ ]
+}
